@@ -1,0 +1,10 @@
+name = CiviCRM Entity PCP
+description = Provides integration with CiviCRM PCP
+core = 7.x
+package = CiviCRM Entity
+version = "7.x-1.0"
+
+dependencies[] = civicrm_entity_price_set_field
+
+
+

@@ -1,0 +1,111 @@
+<?php
+
+/**
+ * @file
+ * Defines functionality for integration of PCP with CiviCRM Entity
+ */
+
+
+/**
+ * Implements hook_civicrm_entity_supported_info().
+ *
+ * @see civicrm_entity.api.php
+ *
+ * @param $civicrm_entity_info
+ */
+function civicrm_entity_pcp_civicrm_entity_supported_info(&$civicrm_entity_info) {
+  $civicrm_entity_info['civicrm_pcp'] = array(
+    'civicrm entity name' => 'pcp',
+    'label property' => 'title',
+    'permissions' => array(
+      'view' => array('administer CiviCRM'),
+      'edit' => array('administer CiviCRM'),
+      'update' => array('administer CiviCRM'),
+      'create' => array('administer CiviCRM'),
+      'delete' => array('administer CiviCRM'),
+    ),
+    'theme' => array(
+      'template' => 'civicrm-pcp',
+      'path' => drupal_get_path('module', 'civicrm_entity_pcp') . '/templates',
+    ),
+    'display suite' => array(
+      'link fields' => array('contact_id'),
+      'option fields' => array('status_id'),
+      'boolean fields' => array('is_active', 'is_notify', 'is_honor_roll', 'is_thermometer'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_form_FORMID_alter().
+ *
+ * form_id = civicrm_entity_price_set_field_display_form_event
+ *
+ * @param $form
+ * @param $form_state
+ * @param $form_id
+ */
+function civicrm_entity_pcp_form_civicrm_entity_price_set_field_display_form_event_alter(&$form, &$form_state) {
+  $url_params = drupal_get_query_parameters();
+  if (!empty($url_params['pcpId'])) {
+    if ($form_state['step'] == 1) {
+      if (!civicrm_initialize()) {
+        return;
+      }
+      try {
+        $result = civicrm_api3('Pcp', 'get', [
+          'sequential' => 1,
+          'page_id'    => $form_state['event']->id,
+          'page_type'  => "event",
+          'status_id'  => "Approved",
+          'is_active'  => 1,
+          'id'         => $url_params['pcpId'],
+        ]);
+
+        if ($result['count'] && !empty($result['values'][0]['id'])) {
+          $form_state['pcpId'] = $url_params['pcpId'];
+          $form_state['pcpData'] = $result['values'][0];
+        }
+        else {
+          drupal_set_message('pcpId parameter is present, but no approved, enabled PCP found.');
+        }
+      }
+      catch (CiviCRM_API3_Exception $e) {
+        watchdog('civicrm_entity_pcp', "Error finding PCP from url param with API:\n" . $e->getMessage());
+      }
+    }
+  }
+  if ($form_state['step'] == 2) {
+    if (!empty($form_state['pcpId'])) {
+      $form['#submit'][] = 'civicrm_entity_pcp_soft_credit_submit_handler';
+    }
+  }
+}
+
+/**
+ * Submit handler added to the Price Set Field submit handler
+ *
+ * @param $form
+ * @param $form_state
+ */
+function civicrm_entity_pcp_soft_credit_submit_handler($form, &$form_state) {
+  if (!empty($form_state['pcpId']) && !empty($form_state['pcpData']) && !empty($form_state['contribution']->id) && isset($form_state['contribution']->total_amount)) {
+    if (!civicrm_initialize()) {
+      return;
+    }
+    try {
+      $result = civicrm_api3('ContributionSoft', 'create', [
+        'sequential' => 1,
+        'amount' => $form_state['contribution']->total_amount,
+        'contact_id' => $form_state['pcpData']['contact_id'],
+        'pcp_id' => $form_state['pcpId'],
+        'soft_credit_type_id' => "pcp",
+        'contribution_id' => $form_state['contribution']->id,
+        'currency' => !empty($form_state['event']->currency) ? $form_state['event']->currency : 'USD',
+      ]);
+    }
+    catch (CiviCRM_API3_Exception $e) {
+      watchdog('civicrm_entity_pcp', "Error creating PCP soft credit:\n" . $e->getMessage());
+    }
+  }
+}

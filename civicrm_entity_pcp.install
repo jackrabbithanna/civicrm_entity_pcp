@@ -1,0 +1,32 @@
+<?php
+
+/**
+ * Implements hook_install().
+ */
+function civicrm_entity_pcp_install() {
+  db_update('system')
+    ->fields(array('weight' => 101))
+    ->condition('type', 'module')
+    ->condition('name', 'civicrm_entity_pcp')
+    ->execute();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+/*
+function civicrm_entity_pcp_uninstall() {
+
+}
+*/
+  
+/**
+ * Implements hook_enable()
+ */
+function civicrm_entity_pcp_enable() {
+    db_update('system')
+    ->fields(array('weight' => 101))
+    ->condition('type', 'module')
+    ->condition('name', 'civicrm_entity_pcp')
+    ->execute();
+}
